@@ -18,7 +18,11 @@ main() {
 
   cd "$app_dir"
   [[ -f .env ]] || fail "$app_dir/.env is missing. Create it on the server first."
-  command -v pm2 >/dev/null || fail "pm2 is not installed."
+  local tool
+  for tool in git node npm pm2 curl; do
+    command -v "$tool" >/dev/null ||
+      fail "$tool is not installed. Run: sudo bash $app_dir/deploy/ec2-user-data.sh"
+  done
 
   echo "==> Fetching code"
   git fetch --prune origin main
