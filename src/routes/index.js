@@ -28,7 +28,7 @@ import {
 const router = Router();
 
 router.get('/health', (_req, res) => {
-  res.json({ success: true, service: 'deepam-crackers-api' });
+  res.json({ success: true, service: 'deepam-crackers-api worked now ' });
 });
 
 router.get('/settings', settings.publicSettings);
