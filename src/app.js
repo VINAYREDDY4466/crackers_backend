@@ -10,7 +10,7 @@ import routes from './routes/index.js';
 import { AppError } from './utils/AppError.js';
 
 const app = express();
-
+//here we are disabling the x-powered-by header to prevent the server from being identified as a Node.js server
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 
