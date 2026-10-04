@@ -1,0 +1,60 @@
+name: Backend CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: backend-production
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm audit --omit=dev --audit-level=high
+
+  deploy:
+    name: Deploy to EC2
+    needs: ci
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      EC2_HOST: ${{ secrets.EC2_HOST }}
+      EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+    steps:
+      - name: Check secrets
+        run: |
+          for name in EC2_HOST EC2_SSH_KEY; do
+            [ -n "${!name}" ] || { echo "Add the $name secret in Settings > Secrets and variables > Actions."; exit 1; }
+          done
+
+      - name: Deploy over SSH
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          # The server key only allows deploy/release.sh; the SHA is passed as its argument.
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o ConnectTimeout=20 "ubuntu@$EC2_HOST" "$GITHUB_SHA"
+
+      - name: Public health check
+        if: vars.API_HEALTH_URL != ''
+        run: |
+          for attempt in $(seq 1 10); do
+            curl -fsS "${{ vars.API_HEALTH_URL }}" && exit 0
+            sleep 3
+          done
+          echo "The API is not reachable at ${{ vars.API_HEALTH_URL }}"
+          exit 1

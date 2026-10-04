@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
+    "check": "find server.js src -name '*.js' -print0 | xargs -0 -n1 node --check",
     "seed": "node src/seed/seed.js",
     "db:migrate": "node src/scripts/migrateDatabase.js"
   },
