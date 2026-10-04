@@ -40,14 +40,29 @@ jobs:
             [ -n "${!name}" ] || { echo "Add the $name secret in Settings > Secrets and variables > Actions."; exit 1; }
           done
 
-      - name: Deploy over SSH
+      - name: Prepare SSH
         run: |
+          HOST="$(printf '%s' "$EC2_HOST" | tr -d '[:space:]')"
+          [[ "$HOST" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$|^[a-zA-Z0-9.-]+$ ]] \
+            || { echo "::error::EC2_HOST must be only the Elastic IP or a hostname, without ubuntu@ or http://."; exit 1; }
+          grep -q 'BEGIN OPENSSH PRIVATE KEY' <<< "$EC2_SSH_KEY" \
+            || { echo "::error::EC2_SSH_KEY must be the full private key, including the BEGIN and END lines."; exit 1; }
+
           install -m 700 -d ~/.ssh
           printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          if ! ssh-keyscan -T 15 -H "$HOST" >> ~/.ssh/known_hosts 2> keyscan.log || ! grep -q . ~/.ssh/known_hosts; then
+            cat keyscan.log
+            echo "::error::Cannot reach the server on port 22. Check that EC2_HOST is the Elastic IP and the security group allows SSH (22) from 0.0.0.0/0."
+            exit 1
+          fi
+          echo "HOST=$HOST" >> "$GITHUB_ENV"
+
+      - name: Deploy over SSH
+        run: |
           # The server key only allows deploy/release.sh; the SHA is passed as its argument.
-          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o ConnectTimeout=20 "ubuntu@$EC2_HOST" "$GITHUB_SHA"
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o ConnectTimeout=20 "ubuntu@$HOST" "$GITHUB_SHA"
 
       - name: Public health check
         if: vars.API_HEALTH_URL != ''
