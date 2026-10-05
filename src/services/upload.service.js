@@ -23,14 +23,24 @@ export function isStorageConfigured() {
   return Boolean(env.aws.region && env.aws.bucket);
 }
 
+const STORAGE_ERRORS = {
+  CredentialsProviderError: 'Image storage has no AWS credentials. Attach an IAM role or set access keys.',
+  InvalidAccessKeyId: 'The AWS access key is invalid or deleted. Update or remove the AWS keys in .env.',
+  SignatureDoesNotMatch: 'The AWS secret access key is wrong. Update or remove the AWS keys in .env.',
+  AccessDenied: 'AWS denied the upload. Check the IAM policy allows this bucket and folder.',
+  NoSuchBucket: 'The S3 bucket does not exist. Check AWS_S3_BUCKET.',
+  PermanentRedirect: 'The S3 bucket is in a different region. Check AWS_REGION.',
+  AuthorizationHeaderMalformed: 'The S3 bucket is in a different region. Check AWS_REGION.',
+};
+
 async function send(command) {
   try {
     return await s3().send(command);
   } catch (error) {
-    if (error.name === 'CredentialsProviderError') {
-      throw new AppError('Image storage has no AWS credentials. Attach an IAM role or set access keys.', 503);
-    }
-    throw error;
+    const message = STORAGE_ERRORS[error.name];
+    if (!message) throw error;
+    console.error(`S3 ${error.name}: ${error.message}`);
+    throw new AppError(message, 503);
   }
 }
 

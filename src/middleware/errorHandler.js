@@ -24,8 +24,9 @@ export function errorHandler(err, _req, res, _next) {
     message = 'The request is too large.';
   }
 
-  if (status >= 500) {
-    if (!err.statusCode || err.statusCode === 500) console.error(err);
+  // AppError messages are written for users; anything else may leak internals.
+  if (status >= 500 && !(err instanceof AppError)) {
+    console.error(err);
     if (env.nodeEnv === 'production') {
       message = 'Something went wrong. Please try again.';
     }
